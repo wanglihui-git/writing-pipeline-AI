@@ -1,0 +1,6 @@
+# 各环节可调用的千问 / 兼容模型标识（由调用层解析）
+outline_model: qwen-plus
+draft_model: qwen-plus
+polish_model: qwen-plus
+judge_model: qwen-plus
+embedding_model: text-embedding-v3

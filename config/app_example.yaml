@@ -1,0 +1,30 @@
+default_word_count: 5000
+max_word_count: 10000
+sqlite_path: data/meta/app.db
+chroma_path: data/chroma
+tasks_data_dir: data/tasks
+
+task_retry:
+  max_retries: 3
+  retry_backoff: true
+  retry_backoff_max: 600
+
+corpus_raw_subdir: data/raw
+corpus_clean_subdir: data/clean
+
+chunk:
+  slide_min_chars: 400
+  slide_max_chars: 800
+  overlap_min_chars: 80
+  overlap_max_chars: 120
+
+retrieval:
+  chroma_top_k: 40
+  anchor_top_n: 10
+  rerank_semantic_weight: 0.5
+
+feishu:
+  app_id: ""
+  app_secret: ""
+  verification_token: ""
+  encrypt_key: ""

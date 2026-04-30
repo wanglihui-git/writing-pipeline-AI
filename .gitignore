@@ -24,6 +24,9 @@ wheels/
 .installed.cfg
 *.egg
 
+config/app.yaml
+config/models.yaml
+
 # Environment
 .env
 .env.local

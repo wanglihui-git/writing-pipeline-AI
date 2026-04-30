@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "writing-pipeline"
+version = "0.1.0"
+description = "Writing Agent MVP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = [
+    "manual_gate: 主观/线下 MVP 验收，不参与 CI 断言",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
