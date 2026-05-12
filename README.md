@@ -37,6 +37,8 @@
 - `app/pipeline/`：核心生成链路与评分逻辑（含 `QwenClient`）
 - `app/services/task_store.py`：SQLite 元数据与版本持久化
 - `config/`：运行配置（`app.yaml`、`models.yaml`）
+- `Dockerfile`、`docker-compose.yml`：可选，容器部署 API（见 §5.5）
+- `web/`：`/ui` 静态控制台
 - `scripts/`：本地启动脚本
 - `docs/runbook-writing-agent.md`：故障排查与运行手册
 
@@ -113,6 +115,8 @@ mkdir data,data\raw,data\clean,data\chroma,data\meta,data\tasks
 ```powershell
 curl http://127.0.0.1:8980/health
 ```
+
+浏览器控制台（单人本地调试）：启动 API 后打开 **http://127.0.0.1:8980/ui/**（同源调用接口，无需单独配置 CORS）。
 
 ### 5.3 启动飞书 Bot（可选）
 
@@ -220,6 +224,44 @@ curl "http://127.0.0.1:8980/corpus/jobs/<job_id>"
 curl "http://127.0.0.1:8980/corpus/authors/luxun/profile"
 ```
 
+### 5.5 Docker / Compose 部署 API
+
+仓库根目录提供 [Dockerfile](Dockerfile) 与 [docker-compose.yml](docker-compose.yml)，在容器内启动 `uvicorn`（监听 `0.0.0.0:8980`），并将 `data/` 持久化到命名卷；镜像内默认将 `config/app_example.yaml`、`config/models_example.yaml` 复制为 `config/app.yaml` 与 `config/models.yaml`，便于开箱跑通（生产环境请换成自有配置）。
+
+首次构建并后台启动：
+
+```powershell
+docker compose up -d --build
+```
+
+查看日志与健康检查：
+
+```powershell
+docker compose logs -f api
+curl http://127.0.0.1:8980/health
+```
+
+浏览器控制台： **http://127.0.0.1:8980/ui/**（端口可通过环境变量 `WRITING_API_PORT` 覆盖，见 `docker-compose.yml`）。
+
+常用环境变量（可在项目根目录创建 `.env` 供 Compose 读取，或在 `docker-compose.yml` 的 `environment` 中填写）：
+
+- `DASHSCOPE_API_KEY`（或 `WRITING_QWEN_API_KEY`）：启用真实千问调用时建议设置
+- `DASHSCOPE_BASE_URL`：可选，自定义 DashScope 兼容网关
+- `WRITING_SQLITE_PATH` / `WRITING_TASKS_DATA_DIR`：可选，覆盖默认 SQLite 与任务工件路径（需与卷挂载布局一致）
+
+使用宿主机上的 `config/app.yaml` 与 `config/models.yaml` 时：在 `docker-compose.yml` 中取消注释配置卷挂载行 `./config:/app/config:ro`，并确保该目录下**同时存在**上述两个文件（不要只挂空目录，否则会覆盖镜像内默认配置导致启动失败）。
+
+仅构建镜像（不通过 Compose）示例：
+
+```powershell
+docker build -t writing-pipeline-ai:latest .
+docker run --rm -p 8980:8980 -v writing_data:/app/data writing-pipeline-ai:latest
+```
+
+需要调用真实千问时再追加环境变量，例如 `-e DASHSCOPE_API_KEY=...`。
+
+> 说明：当前 Compose 仅编排 **API** 服务；飞书长连接 Bot 仍需在宿主机或单独容器中按 `python -m app.feishu.bot_loop` 自行运行（需配置 `feishu` 等字段）。
+
 ## 6. 飞书使用流程
 
 - `/outline author=xxx topic=... angle=... thesis=... argument_framework=... narrative_skeleton=... target_audience=...`
@@ -291,6 +333,8 @@ curl "http://127.0.0.1:8980/corpus/authors/luxun/profile"
 
 - 进程 A：FastAPI（`uvicorn app.api.main:app`）
 - 进程 B：Feishu Bot（`python -m app.feishu.bot_loop`，可选）
+
+也可直接使用 **§5.5** 中的 Docker / Compose 运行进程 A（API），数据目录通过卷持久化。
 
 建议用 `systemd` / `supervisord` / 容器编排托管上述进程，设置自动重启与日志轮转。
 

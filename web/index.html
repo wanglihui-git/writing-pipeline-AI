@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Writing Pipeline — 控制台</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #fff;
+      --border: #e2e5eb;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --ok: #16a34a;
+      --warn: #ca8a04;
+      --err: #dc2626;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      font-size: 15px;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+    .topbar h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    .topbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+    }
+    label.small { font-size: 12px; color: var(--muted); }
+    input[type="text"], input[type="url"], textarea, select {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: 14px;
+      background: #fff;
+      color: var(--text);
+    }
+    input.narrow { width: 140px; }
+    input.wide { width: min(420px, 100%); }
+    textarea { width: 100%; min-height: 72px; resize: vertical; font-family: inherit; }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 14px;
+      font-weight: 550;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    button.secondary:hover { background: #f1f3f7; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    main { max-width: 880px; margin: 0 auto; padding: 24px 20px 48px; }
+    section.card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow);
+    }
+    section.card h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      font-weight: 650;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+    .field { flex: 1 1 200px; display: flex; flex-direction: column; gap: 4px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+    .badge.outline-no { background: #fef3c7; color: #92400e; border-color: #fcd34d; }
+    .health-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--border);
+      display: inline-block;
+    }
+    .health-dot.ok { background: var(--ok); box-shadow: 0 0 0 3px rgb(22 163 74 / 0.2); }
+    .health-dot.err { background: var(--err); }
+    details.sub { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+    details.sub summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    pre, .article-body {
+      font-family: var(--mono);
+      font-size: 13px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 14px;
+      border-radius: 8px;
+      overflow: auto;
+      max-height: 420px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .article-body { background: #fafbfc; color: var(--text); border: 1px solid var(--border); }
+    .msg {
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .msg.err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .msg.ok { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .outline-tree { margin: 0; padding-left: 0; list-style: none; }
+    .outline-tree ul { margin: 6px 0 0 16px; padding: 0; list-style: disc; color: var(--muted); }
+    .outline-tree .sec-title { font-weight: 650; margin-top: 10px; }
+    .outline-tree .goal { font-size: 13px; color: var(--muted); margin: 4px 0; }
+    .outline-tree .purpose { margin: 4px 0; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .poll-hint { font-size: 12px; color: var(--muted); margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Writing Pipeline AI</h1>
+    <div class="topbar-actions">
+      <label class="small">API 地址
+        <input type="url" id="apiBase" class="wide" placeholder="留空则使用当前站点源（推荐）" />
+      </label>
+      <button type="button" class="secondary" id="btnHealth">检查</button>
+      <span class="health-dot" id="healthDot" title="健康状态"></span>
+      <label class="checkbox-row small" style="margin:0">
+        <input type="checkbox" id="autoPoll" checked /> 自动刷新状态
+      </label>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>新建任务</h2>
+      <p class="muted">对应 <code>POST /tasks/</code>，brief 六项与 README 示例一致。</p>
+      <div class="row">
+        <div class="field">
+          <label class="small">作者 author（可选）</label>
+          <input type="text" id="author" placeholder="demo" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label class="small">选题 topic *</label><input type="text" id="topic" /></div>
+        <div class="field"><label class="small">切入角度 angle *</label><input type="text" id="angle" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label class="small">核心命题 thesis *</label><input type="text" id="thesis" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label class="small">论证框架 argument_framework *</label><input type="text" id="argument_framework" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label class="small">叙事骨架 narrative_skeleton *</label><input type="text" id="narrative_skeleton" /></div>
+        <div class="field"><label class="small">目标读者 target_audience *</label><input type="text" id="target_audience" /></div>
+      </div>
+      <button type="button" id="btnCreate">创建任务</button>
+      <div id="createMsg"></div>
+    </section>
+
+    <section class="card">
+      <h2>当前任务</h2>
+      <div class="row">
+        <div class="field" style="flex:2 1 320px">
+          <label class="small">task_id</label>
+          <input type="text" id="taskId" class="wide" placeholder="创建后自动填入" />
+        </div>
+        <button type="button" class="secondary" id="btnRefreshTask">刷新状态</button>
+      </div>
+      <div id="taskBadges"></div>
+      <pre id="taskJson" style="display:none; margin-top:12px; max-height:200px"></pre>
+      <div id="taskMsg"></div>
+    </section>
+
+    <section class="card">
+      <h2>大纲</h2>
+      <div class="row">
+        <button type="button" id="btnFetchOutline">获取最新大纲</button>
+        <button type="button" class="secondary" id="btnConfirmOutline">确认大纲</button>
+      </div>
+      <div id="outlineMsg"></div>
+      <div id="outlineView"></div>
+    </section>
+
+    <section class="card">
+      <h2>正文</h2>
+      <div class="row">
+        <button type="button" id="btnGenerate">生成正文</button>
+        <button type="button" class="secondary" id="btnFetchArticle">查看最新正文</button>
+      </div>
+      <details class="sub" id="rawArticleWrap" style="display:none">
+        <summary>concatenated_raw</summary>
+        <pre id="articleRaw"></pre>
+      </details>
+      <div id="articleMsg"></div>
+      <div class="article-body" id="articlePolished" style="display:none; margin-top:12px"></div>
+    </section>
+
+    <details class="card" open>
+      <summary><h2 style="display:inline">改写</h2></summary>
+      <h3 class="muted" style="margin-top:0;font-size:14px">整篇 <code>POST .../rewrite/full</code></h3>
+      <div class="field">
+        <label class="small">instruction</label>
+        <textarea id="rwFullInstr" placeholder="更凝练，减少套话"></textarea>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="rwFullKeep" checked />
+        <label for="rwFullKeep">keep_facts</label>
+      </div>
+      <button type="button" id="btnRwFull">整篇改写</button>
+      <h3 class="muted" style="font-size:14px;margin-top:20px">局部 <code>POST .../rewrite/partial</code></h3>
+      <div class="field">
+        <label class="small">instruction</label>
+        <textarea id="rwPartInstr" placeholder="加强第二段论证"></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label class="small">段落范围 start（含）</label>
+          <input type="number" id="rwPartStart" value="1" min="0" class="narrow" />
+        </div>
+        <div class="field">
+          <label class="small">段落范围 end（含）</label>
+          <input type="number" id="rwPartEnd" value="1" min="0" class="narrow" />
+        </div>
+      </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="rwPartBridge" checked />
+        <label for="rwPartBridge">apply_context_bridge</label>
+      </div>
+      <button type="button" id="btnRwPartial">局部改写</button>
+      <div id="rewriteMsg"></div>
+    </details>
+
+    <section class="card">
+      <h2>人工反馈</h2>
+      <div class="row">
+        <div class="field">
+          <label class="small">score_1_5</label>
+          <select id="fbScore">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5" selected>5</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label class="small">comment</label>
+        <textarea id="fbComment" placeholder="结构清晰"></textarea>
+      </div>
+      <div class="row">
+        <button type="button" id="btnFeedback">提交反馈</button>
+        <button type="button" class="secondary" id="btnFeedbackStats">查询统计</button>
+      </div>
+      <div id="feedbackMsg"></div>
+      <pre id="feedbackStats" style="margin-top:10px;display:none"></pre>
+    </section>
+
+    <details class="card">
+      <summary><h2 style="display:inline">语料</h2></summary>
+      <p class="muted"><code>POST /corpus/upload</code> — author_slug 仅字母数字 <code>_</code> <code>-</code>，仅 .txt，最大 5MB。</p>
+      <div class="row">
+        <div class="field">
+          <label class="small">author_slug</label>
+          <input type="text" id="corpusSlug" placeholder="luxun" />
+        </div>
+        <div class="field">
+          <label class="small">文件</label>
+          <input type="file" id="corpusFile" accept=".txt,text/plain" />
+        </div>
+      </div>
+      <button type="button" id="btnCorpusUpload">上传</button>
+      <div class="row" style="margin-top:14px">
+        <div class="field">
+          <label class="small">job_id（上传返回 / 手动粘贴）</label>
+          <input type="text" id="corpusJobId" class="wide" />
+        </div>
+        <button type="button" class="secondary" id="btnCorpusJob">查询任务</button>
+      </div>
+      <label class="checkbox-row small"><input type="checkbox" id="corpusPoll" /> 轮询 job 直至结束</label>
+      <div class="row">
+        <button type="button" class="secondary" id="btnCorpusProfile">查询作者画像</button>
+      </div>
+      <pre id="corpusOut" style="margin-top:10px;display:none"></pre>
+      <div id="corpusMsg"></div>
+    </details>
+  </main>
+
+  <script>
+(function () {
+  const LS_BASE = 'writing_pipeline_api_base';
+  const LS_TASK = 'writing_pipeline_task_id';
+
+  const ACTIVE_STATES = new Set([
+    'RECEIVED', 'OUTLINE_GENERATING', 'DRAFT_GENERATING', 'SCORING', 'REWRITING'
+  ]);
+
+  const $ = (id) => document.getElementById(id);
+
+  function apiBaseTrim() {
+    const v = ($('apiBase').value || '').trim();
+    return v.replace(/\/$/, '');
+  }
+
+  function apiUrl(path) {
+    const p = path.startsWith('/') ? path : '/' + path;
+    const base = apiBaseTrim();
+    if (!base) return window.location.origin + p;
+    return base + p;
+  }
+
+  function formatDetail(detail) {
+    if (detail == null) return '请求失败';
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((e) => {
+        if (e && typeof e === 'object' && 'msg' in e) return e.msg;
+        return JSON.stringify(e);
+      }).join('; ');
+    }
+    return String(detail);
+  }
+
+  async function apiFetch(path, opts = {}) {
+    const url = apiUrl(path);
+    const headers = { ...opts.headers };
+    let body = opts.body;
+    if (body != null && typeof body === 'object' && !(body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+      body = JSON.stringify(body);
+    }
+    const res = await fetch(url, { ...opts, headers, body });
+    const ct = res.headers.get('content-type') || '';
+    let data = null;
+    if (ct.includes('application/json')) {
+      try { data = await res.json(); } catch (_) { data = null; }
+    } else {
+      const t = await res.text();
+      data = t ? { _raw: t } : null;
+    }
+    if (!res.ok) {
+      const msg = data && data.detail != null ? formatDetail(data.detail) : (res.statusText || 'HTTP ' + res.status);
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return data;
+  }
+
+  function showMsg(el, text, ok) {
+    el.innerHTML = '';
+    if (!text) return;
+    const div = document.createElement('div');
+    div.className = 'msg ' + (ok ? 'ok' : 'err');
+    div.textContent = text;
+    el.appendChild(div);
+  }
+
+  function clearMsg(...els) {
+    els.forEach((el) => { el.innerHTML = ''; });
+  }
+
+  function saveLocal() {
+    localStorage.setItem(LS_BASE, $('apiBase').value);
+    localStorage.setItem(LS_TASK, $('taskId').value.trim());
+  }
+
+  function loadLocal() {
+    const b = localStorage.getItem(LS_BASE);
+    if (b != null) $('apiBase').value = b;
+    const t = localStorage.getItem(LS_TASK);
+    if (t) $('taskId').value = t;
+  }
+
+  function renderOutline(doc) {
+    const root = $('outlineView');
+    root.innerHTML = '';
+    if (!doc || !doc.sections) {
+      root.innerHTML = '<p class="muted">暂无大纲结构</p>';
+      return;
+    }
+    const ol = document.createElement('ul');
+    ol.className = 'outline-tree';
+    if (doc.title) {
+      const t = document.createElement('li');
+      t.innerHTML = '<strong>' + escapeHtml(doc.title) + '</strong>';
+      ol.appendChild(t);
+    }
+    doc.sections.forEach((sec) => {
+      const li = document.createElement('li');
+      li.className = 'sec-title';
+      li.textContent = sec.section_title || '(无标题)';
+      const goal = document.createElement('div');
+      goal.className = 'goal';
+      goal.textContent = sec.section_goal || '';
+      li.appendChild(goal);
+      const ul = document.createElement('ul');
+      (sec.paragraphs || []).forEach((pg) => {
+        const pli = document.createElement('li');
+        pli.className = 'purpose';
+        pli.textContent = pg.purpose || '';
+        const slots = pg.evidence_slots;
+        if (slots && slots.length) {
+          const s = document.createElement('div');
+          s.className = 'muted';
+          s.style.fontSize = '12px';
+          s.textContent = '证据槽: ' + slots.join('；');
+          pli.appendChild(s);
+        }
+        ul.appendChild(pli);
+      });
+      li.appendChild(ul);
+      ol.appendChild(li);
+    });
+    if (doc.closing_notes) {
+      const cn = document.createElement('li');
+      cn.className = 'muted';
+      cn.style.marginTop = '8px';
+      cn.textContent = '收束: ' + doc.closing_notes;
+      ol.appendChild(cn);
+    }
+    root.appendChild(ol);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  let pollTimer = null;
+  let corpusPollTimer = null;
+
+  function stopPoll() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  async function refreshTask() {
+    const id = $('taskId').value.trim();
+    if (!id) {
+      showMsg($('taskMsg'), '请填写 task_id', false);
+      return null;
+    }
+    clearMsg($('taskMsg'));
+    try {
+      const data = await apiFetch('/tasks/' + encodeURIComponent(id));
+      saveLocal();
+      const badges = $('taskBadges');
+      badges.innerHTML = '';
+      const b1 = document.createElement('span');
+      b1.className = 'badge';
+      b1.textContent = 'state: ' + data.state;
+      badges.appendChild(b1);
+      const b2 = document.createElement('span');
+      b2.className = 'badge ' + (data.outline_confirmed ? '' : 'outline-no');
+      b2.style.marginLeft = '8px';
+      b2.textContent = 'outline_confirmed: ' + data.outline_confirmed;
+      badges.appendChild(b2);
+      $('taskJson').style.display = 'block';
+      $('taskJson').textContent = JSON.stringify(data, null, 2);
+
+      stopPoll();
+      if ($('autoPoll').checked && ACTIVE_STATES.has(data.state)) {
+        pollTimer = setInterval(() => { refreshTask().catch(() => {}); }, 2000);
+      }
+      return data;
+    } catch (e) {
+      showMsg($('taskMsg'), e.message, false);
+      stopPoll();
+      return null;
+    }
+  }
+
+  $('apiBase').addEventListener('change', saveLocal);
+  $('taskId').addEventListener('change', saveLocal);
+
+  $('btnHealth').onclick = async () => {
+    const dot = $('healthDot');
+    dot.className = 'health-dot';
+    try {
+      await apiFetch('/health');
+      dot.classList.add('ok');
+    } catch (_) {
+      dot.classList.add('err');
+    }
+  };
+
+  $('btnCreate').onclick = async () => {
+    clearMsg($('createMsg'));
+    const brief = {
+      topic: $('topic').value.trim(),
+      angle: $('angle').value.trim(),
+      thesis: $('thesis').value.trim(),
+      argument_framework: $('argument_framework').value.trim(),
+      narrative_skeleton: $('narrative_skeleton').value.trim(),
+      target_audience: $('target_audience').value.trim(),
+    };
+    const miss = Object.entries(brief).filter(([, v]) => !v).map(([k]) => k);
+    if (miss.length) {
+      showMsg($('createMsg'), '请填写必填项: ' + miss.join(', '), false);
+      return;
+    }
+    const payload = { brief };
+    const a = $('author').value.trim();
+    if (a) payload.author = a;
+    try {
+      const r = await apiFetch('/tasks/', { method: 'POST', body: payload });
+      $('taskId').value = r.task_id;
+      saveLocal();
+      showMsg($('createMsg'), '已创建 task_id: ' + r.task_id, true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('createMsg'), e.message, false);
+    }
+  };
+
+  $('btnRefreshTask').onclick = () => refreshTask();
+  $('autoPoll').addEventListener('change', () => refreshTask());
+
+  $('btnFetchOutline').onclick = async () => {
+    clearMsg($('outlineMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('outlineMsg'), '请填写 task_id', false); return; }
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/outline/latest');
+      renderOutline(r.outline || r);
+      showMsg($('outlineMsg'), 'outline v' + r.outline_version + (r.outline_confirmed ? '（已确认）' : ''), true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('outlineMsg'), e.message, false);
+    }
+  };
+
+  $('btnConfirmOutline').onclick = async () => {
+    clearMsg($('outlineMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('outlineMsg'), '请填写 task_id', false); return; }
+    try {
+      await apiFetch('/tasks/' + encodeURIComponent(id) + '/outline/confirm', { method: 'POST', body: {} });
+      showMsg($('outlineMsg'), '大纲已确认', true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('outlineMsg'), e.message, false);
+    }
+  };
+
+  $('btnGenerate').onclick = async () => {
+    clearMsg($('articleMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('articleMsg'), '请填写 task_id', false); return; }
+    try {
+      await apiFetch('/tasks/' + encodeURIComponent(id) + '/generate', { method: 'POST', body: {} });
+      showMsg($('articleMsg'), '已触发生成', true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('articleMsg'), e.message, false);
+    }
+  };
+
+  $('btnFetchArticle').onclick = async () => {
+    clearMsg($('articleMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('articleMsg'), '请填写 task_id', false); return; }
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/article/latest');
+      $('articlePolished').style.display = 'block';
+      $('articlePolished').textContent = r.concatenated_polished || '';
+      $('rawArticleWrap').style.display = 'block';
+      $('articleRaw').textContent = r.concatenated_raw || '';
+      showMsg($('articleMsg'), 'article v' + r.article_version, true);
+    } catch (e) {
+      $('articlePolished').style.display = 'none';
+      $('rawArticleWrap').style.display = 'none';
+      showMsg($('articleMsg'), e.message, false);
+    }
+  };
+
+  $('btnRwFull').onclick = async () => {
+    clearMsg($('rewriteMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('rewriteMsg'), '请填写 task_id', false); return; }
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/rewrite/full', {
+        method: 'POST',
+        body: {
+          instruction: $('rwFullInstr').value.trim(),
+          keep_facts: $('rwFullKeep').checked,
+        },
+      });
+      showMsg($('rewriteMsg'), '整篇改写完成 · v' + r.article_version + ' · fused: ' + (r.fused_score_0_100 ?? '—'), true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('rewriteMsg'), e.message, false);
+    }
+  };
+
+  $('btnRwPartial').onclick = async () => {
+    clearMsg($('rewriteMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('rewriteMsg'), '请填写 task_id', false); return; }
+    const s = parseInt($('rwPartStart').value, 10);
+    const e = parseInt($('rwPartEnd').value, 10);
+    const body = {
+      instruction: $('rwPartInstr').value.trim(),
+      apply_context_bridge: $('rwPartBridge').checked,
+    };
+    if (!Number.isNaN(s) && !Number.isNaN(e)) body.paragraph_range = [s, e];
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/rewrite/partial', {
+        method: 'POST',
+        body,
+      });
+      showMsg($('rewriteMsg'), '局部改写完成 · v' + r.article_version + ' · fused: ' + (r.fused_score_0_100 ?? '—'), true);
+      await refreshTask();
+    } catch (e) {
+      showMsg($('rewriteMsg'), e.message, false);
+    }
+  };
+
+  $('btnFeedback').onclick = async () => {
+    clearMsg($('feedbackMsg'));
+    $('feedbackStats').style.display = 'none';
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('feedbackMsg'), '请填写 task_id', false); return; }
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/feedback', {
+        method: 'POST',
+        body: {
+          score_1_5: parseInt($('fbScore').value, 10),
+          comment: $('fbComment').value.trim() || null,
+        },
+      });
+      showMsg($('feedbackMsg'), '已写入反馈 id=' + r.id, true);
+    } catch (e) {
+      showMsg($('feedbackMsg'), e.message, false);
+    }
+  };
+
+  $('btnFeedbackStats').onclick = async () => {
+    clearMsg($('feedbackMsg'));
+    const id = $('taskId').value.trim();
+    if (!id) { showMsg($('feedbackMsg'), '请填写 task_id', false); return; }
+    try {
+      const r = await apiFetch('/tasks/' + encodeURIComponent(id) + '/feedback/stats');
+      $('feedbackStats').style.display = 'block';
+      $('feedbackStats').textContent = JSON.stringify(r, null, 2);
+      showMsg($('feedbackMsg'), '已拉取统计', true);
+    } catch (e) {
+      showMsg($('feedbackMsg'), e.message, false);
+    }
+  };
+
+  function stopCorpusPoll() {
+    if (corpusPollTimer) {
+      clearInterval(corpusPollTimer);
+      corpusPollTimer = null;
+    }
+  }
+
+  $('btnCorpusUpload').onclick = async () => {
+    clearMsg($('corpusMsg'));
+    $('corpusOut').style.display = 'none';
+    const slug = $('corpusSlug').value.trim();
+    const fileEl = $('corpusFile');
+    if (!slug) { showMsg($('corpusMsg'), '请填写 author_slug', false); return; }
+    if (!fileEl.files || !fileEl.files[0]) { showMsg($('corpusMsg'), '请选择 .txt 文件', false); return; }
+    const fd = new FormData();
+    fd.append('author_slug', slug);
+    fd.append('file', fileEl.files[0]);
+    try {
+      const r = await apiFetch('/corpus/upload', { method: 'POST', body: fd });
+      $('corpusJobId').value = r.job_id || '';
+      $('corpusOut').style.display = 'block';
+      $('corpusOut').textContent = JSON.stringify(r, null, 2);
+      showMsg($('corpusMsg'), '已上传 · job_id: ' + (r.job_id || ''), true);
+      if ($('corpusPoll').checked) startCorpusPoll(r.job_id);
+    } catch (e) {
+      showMsg($('corpusMsg'), e.message, false);
+    }
+  };
+
+  async function fetchCorpusJob() {
+    const jobId = $('corpusJobId').value.trim();
+    if (!jobId) throw new Error('请填写 job_id');
+    const r = await apiFetch('/corpus/jobs/' + encodeURIComponent(jobId));
+    $('corpusOut').style.display = 'block';
+    $('corpusOut').textContent = JSON.stringify(r, null, 2);
+    return r;
+  }
+
+  $('btnCorpusJob').onclick = async () => {
+    clearMsg($('corpusMsg'));
+    stopCorpusPoll();
+    try {
+      await fetchCorpusJob();
+      showMsg($('corpusMsg'), '已查询', true);
+    } catch (e) {
+      showMsg($('corpusMsg'), e.message, false);
+    }
+  };
+
+  function startCorpusPoll(jobId) {
+    stopCorpusPoll();
+    if (!jobId) return;
+    corpusPollTimer = setInterval(async () => {
+      try {
+        const r = await apiFetch('/corpus/jobs/' + encodeURIComponent(jobId));
+        $('corpusOut').style.display = 'block';
+        $('corpusOut').textContent = JSON.stringify(r, null, 2);
+        if (r.status === 'SUCCEEDED' || r.status === 'FAILED') {
+          stopCorpusPoll();
+          showMsg($('corpusMsg'), 'job 结束: ' + r.status, r.status === 'SUCCEEDED');
+        }
+      } catch (_) { stopCorpusPoll(); }
+    }, 2000);
+  }
+
+  $('btnCorpusProfile').onclick = async () => {
+    clearMsg($('corpusMsg'));
+    const slug = $('corpusSlug').value.trim();
+    if (!slug) { showMsg($('corpusMsg'), '请填写 author_slug', false); return; }
+    try {
+      const r = await apiFetch('/corpus/authors/' + encodeURIComponent(slug) + '/profile');
+      $('corpusOut').style.display = 'block';
+      $('corpusOut').textContent = JSON.stringify(r, null, 2);
+      showMsg($('corpusMsg'), '已拉取画像', true);
+    } catch (e) {
+      showMsg($('corpusMsg'), e.message, false);
+    }
+  };
+
+  loadLocal();
+  $('btnHealth').click();
+  if ($('taskId').value.trim()) refreshTask();
+})();
+  </script>
+</body>
+</html>

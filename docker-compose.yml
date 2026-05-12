@@ -1,0 +1,23 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: writing-pipeline-ai:latest
+    ports:
+      - "${WRITING_API_PORT:-8980}:8980"
+    environment:
+      WRITING_PIPELINE_ROOT: /app
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_BASE_URL: ${DASHSCOPE_BASE_URL:-}
+      WRITING_QWEN_API_KEY: ${WRITING_QWEN_API_KEY:-}
+      WRITING_SQLITE_PATH: ${WRITING_SQLITE_PATH:-}
+      WRITING_TASKS_DATA_DIR: ${WRITING_TASKS_DATA_DIR:-}
+    volumes:
+      - /d/data/writing_pipeline_data:/app/data
+      # 使用自有配置时将下一行注释打开，并在宿主机准备 config/app.yaml 与 config/models.yaml
+      # - ./config:/app/config:ro
+    restart: unless-stopped
+
+# volumes:
+#   writing_pipeline_data:
